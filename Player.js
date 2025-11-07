@@ -74,12 +74,20 @@ export class Player {
              if (data.vector) {
                 this.lookDirection.set(data.vector.x, data.vector.y);
 
-                // Use PointerLockControls' built-in move method for rotation
-                const e = {
-                    movementX: data.vector.x * 5, // Sensitivity multiplier
-                    movementY: data.vector.y * 5  // Sensitivity multiplier
-                };
-                this.controls.onMouseMove(e);
+                const movementX = data.vector.x * 5; // Sensitivity multiplier
+                const movementY = data.vector.y * 5; // Sensitivity multiplier
+
+                const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+                euler.setFromQuaternion(this.camera.quaternion);
+
+                euler.y -= movementX * 0.002;
+                euler.x -= movementY * 0.002;
+
+                // Clamp vertical rotation
+                const PI_2 = Math.PI / 2;
+                euler.x = Math.max(-PI_2, Math.min(PI_2, euler.x));
+
+                this.camera.quaternion.setFromEuler(euler);
             }
         });
 

@@ -91,7 +91,7 @@ export class World {
         ground.rotation.x = -Math.PI / 2;
         this.group.add(ground);
         const groundBox = new THREE.Box3().setFromObject(ground);
-        groundBox.min.y = -0.1; groundBox.max.y = 0.1;
+        groundBox.min.y = -0.5; groundBox.max.y = 0; // Make ground a bit thicker and go to y=0
         this.collisionBoxes.push(groundBox);
 
         for (let i = -cityLimit; i < cityLimit; i += this.blockAndRoadSize) {
@@ -132,7 +132,14 @@ export class World {
         // Simple optimization: only return boxes near the player
         const closeBoxes = [];
         const range = 10; // Increased range due to larger city scale
-        for (const box of this.collisionBoxes) {
+        
+        // Always include the ground (first box)
+        if (this.collisionBoxes.length > 0) {
+            closeBoxes.push(this.collisionBoxes[0]);
+        }
+
+        for (let i = 1; i < this.collisionBoxes.length; i++) {
+            const box = this.collisionBoxes[i];
             if (box.distanceToPoint(centerPoint) < range) {
                 closeBoxes.push(box);
             }

@@ -93,10 +93,14 @@ export class Player {
                 const size = intersection.getSize(new THREE.Vector3());
 
                 if (size.y > size.x && size.y > size.z) { // Vertical collision
-                    if (playerBox.min.y < box.max.y && this.velocity.y < 0) {
+                    if (playerBox.min.y < box.max.y && this.velocity.y <= 0) {
                         this.velocity.y = 0;
                         this.controls.getObject().position.y = box.max.y + this.height / 2;
                         this.onGround = true;
+                    } else if (playerBox.max.y > box.min.y && this.velocity.y > 0) {
+                        // Hitting ceiling
+                        this.velocity.y = 0;
+                        this.controls.getObject().position.y = box.min.y - this.height / 2;
                     }
                 } else { // Horizontal collision
                      if (size.x > size.z) {

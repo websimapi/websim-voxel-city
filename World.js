@@ -31,14 +31,46 @@ export class World {
         const buildingUv = this.getUv(0, 1, 2, 2);
         const windowUv = this.getUv(1, 1, 2, 2);
 
-        const groundGeometry = new THREE.PlaneGeometry(this.citySize * this.tileSize, this.citySize * this.tileSize);
+        const groundGeometry = new THREE.PlaneGeometry(
+            this.citySize * this.tileSize, 
+            this.citySize * this.tileSize,
+            this.citySize,
+            this.citySize
+        );
         const groundMaterial = new THREE.MeshStandardMaterial({ map: this.texture, side: THREE.DoubleSide });
-        groundGeometry.faceVertexUvs[0] = [];
-        for (let i = 0; i < groundGeometry.faces.length; i += 2) {
-             groundGeometry.faceVertexUvs[0][i] = [grassUv[0], grassUv[1], grassUv[3]];
-             groundGeometry.faceVertexUvs[0][i+1] = [grassUv[1], grassUv[2], grassUv[3]];
+        
+        const cityLimit = this.citySize / 2;
+        const uvs = groundGeometry.attributes.uv;
+        
+        for (let j = 0; j < this.citySize; j++) {
+            for (let i = 0; i < this.citySize; i++) {
+                const tileX = i - cityLimit;
+                const tileZ = j - cityLimit;
+
+                const inXRoad = Math.abs(tileX % this.blockSize) < this.roadWidth / 2;
+                const inZRoad = Math.abs(tileZ % this.blockSize) < this.roadWidth / 2;
+
+                const uvSet = (inXRoad || inZRoad) ? roadUv : grassUv;
+                
+                const quadIndex = j * this.citySize + i;
+                const triangleIndex = quadIndex * 2;
+                const vertexIndex = triangleIndex * 3;
+
+                // For a PlaneGeometry, the index buffer is ordered.
+                // We can find the 4 vertices of a quad.
+                const vIdx1 = groundGeometry.index.getX(vertexIndex);
+                const vIdx2 = groundGeometry.index.getY(vertexIndex);
+                const vIdx3 = groundGeometry.index.getZ(vertexIndex);
+                const vIdx4 = groundGeometry.index.getY(vertexIndex + 3); // The fourth vertex of the quad
+
+                uvs.setXY(vIdx1, uvSet[0].x, uvSet[0].y); // BL
+                uvs.setXY(vIdx2, uvSet[1].x, uvSet[1].y); // BR
+                uvs.setXY(vIdx3, uvSet[3].x, uvSet[3].y); // TL
+                uvs.setXY(vIdx4, uvSet[2].x, uvSet[2].y); // TR
+            }
         }
-        groundGeometry.uvsNeedUpdate = true;
+
+        uvs.needsUpdate = true;
 
         const ground = new THREE.Mesh(groundGeometry, groundMaterial);
         ground.rotation.x = -Math.PI / 2;

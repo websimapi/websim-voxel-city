@@ -9,10 +9,19 @@ canvas {
     display: block;
 }
 
-#joystick-container {
+#joystick-container-left {
     position: absolute;
     bottom: 30px;
     left: 30px;
+    width: 150px;
+    height: 150px;
+    z-index: 10;
+}
+
+#joystick-container-right {
+    position: absolute;
+    bottom: 30px;
+    right: 30px;
     width: 150px;
     height: 150px;
     z-index: 10;

@@ -38,50 +38,48 @@ export class Player {
     initMobileControls() {
         if (!isMobile) return;
 
-        this.moveForward = false;
-        this.moveBackward = false;
-        this.moveLeft = false;
-        this.moveRight = false;
+        this.moveVector = new THREE.Vector2();
+        this.lookVector = new THREE.Vector2();
 
-        const joystickContainer = document.getElementById('joystick-container');
-        const joystick = nipplejs.create({
-            zone: joystickContainer,
+        // Left joystick for movement
+        const joystickContainerLeft = document.getElementById('joystick-container-left');
+        const joystickMove = nipplejs.create({
+            zone: joystickContainerLeft,
             mode: 'static',
             position: { left: '50%', top: '50%' },
             color: 'white',
         });
 
-        joystick.on('move', (evt, data) => {
-            const angle = data.angle.radian;
-            this.moveForward = Math.sin(angle) > 0.3;
-            this.moveBackward = Math.sin(angle) < -0.3;
-            this.moveLeft = Math.cos(angle) < -0.3;
-            this.moveRight = Math.cos(angle) > 0.3;
-        });
-
-        joystick.on('end', () => {
-            this.moveForward = this.moveBackward = this.moveLeft = this.moveRight = false;
-        });
-
-        let lastTouchX = 0;
-        let lastTouchY = 0;
-        document.addEventListener('touchstart', (e) => {
-            if (e.touches.length === 1 && e.touches[0].clientX > window.innerWidth / 2) {
-                 lastTouchX = e.touches[0].clientX;
-                 lastTouchY = e.touches[0].clientY;
+        joystickMove.on('move', (evt, data) => {
+            if (data.vector) {
+                this.moveVector.set(data.vector.x, data.vector.y);
             }
         });
-        document.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 1 && e.touches[0] && e.touches[0].clientX > window.innerWidth / 2) {
-                const dx = e.touches[0].clientX - lastTouchX;
-                const dy = e.touches[0].clientY - lastTouchY;
-                this.controls.moveRight(-dx * 0.005); // Use moveRight for yaw (left/right)
-                this.controls.getObject().rotation.x -= dy * 0.002; // Rotate camera directly for pitch (up/down)
-                this.controls.getObject().rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.controls.getObject().rotation.x)); // Clamp pitch
-                lastTouchX = e.touches[0].clientX;
-                lastTouchY = e.touches[0].clientY;
+
+        joystickMove.on('end', () => {
+            this.moveVector.set(0, 0);
+        });
+
+        // Right joystick for looking
+        const joystickContainerRight = document.getElementById('joystick-container-right');
+        const joystickLook = nipplejs.create({
+            zone: joystickContainerRight,
+            mode: 'static',
+            position: { left: '50%', top: '50%' },
+            color: 'white',
+        });
+
+        joystickLook.on('move', (evt, data) => {
+             if (data.vector) {
+                this.lookVector.set(data.vector.x, data.vector.y);
             }
         });
+
+        joystickLook.on('end', () => {
+            this.lookVector.set(0, 0);
+        });
+        
+        // Remove old touch listeners
     }
 
     handleCollisions(world) {
@@ -128,8 +126,8 @@ export class Player {
         const right = new THREE.Vector3();
         right.copy(forward).cross(this.camera.up);
 
-        const forwardMovement = (Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward));
-        const rightMovement = (Number(this.keys['KeyD'] || this.moveRight) - Number(this.keys['KeyA'] || this.moveLeft));
+        const forwardMovement = (Number(this.keys['KeyW']) - Number(this.keys['KeyS'])) || this.moveVector.y;
+        const rightMovement = (Number(this.keys['KeyD']) - Number(this.keys['KeyA'])) || -this.moveVector.x;
         
         const moveDirection = new THREE.Vector3()
             .add(forward.multiplyScalar(forwardMovement))
@@ -173,11 +171,18 @@ export class Player {
     update(delta, world) {
         this.delta = delta; // Store delta for use in handleCollisions
 
+        if (isMobile && this.lookVector.length() > 0) {
+            this.controls.moveRight(-this.lookVector.x * delta * 2);
+            this.controls.getObject().rotation.x -= this.lookVector.y * delta;
+            this.controls.getObject().rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.controls.getObject().rotation.x));
+        }
+
         this.velocity.y -= this.gravity * delta;
 
-        this.direction.z = Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward);
-        this.direction.x = Number(this.keys['KeyA'] || this.moveLeft) - Number(this.keys['KeyD'] || this.moveRight);
-        this.direction.normalize(); // Ensure consistent speed in all directions
+        // This calculation is now handled in handleCollisions, so it's redundant here.
+        // this.direction.z = Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward);
+        // this.direction.x = Number(this.keys['KeyA'] || this.moveLeft) - Number(this.keys['KeyD'] || this.moveRight);
+        // this.direction.normalize(); // Ensure consistent speed in all directions
 
         if ((this.keys['Space']) && this.onGround) {
             this.velocity.y = this.jumpHeight;

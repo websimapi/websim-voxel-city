@@ -9,9 +9,9 @@ export class Player {
         this.camera = camera;
         this.velocity = new THREE.Vector3();
         this.direction = new THREE.Vector3();
-        this.speed = 5;
+        this.speed = 8;
         this.gravity = 9.8;
-        this.jumpHeight = 6;
+        this.jumpHeight = 8;
         this.onGround = false;
 
         this.height = 1.8;

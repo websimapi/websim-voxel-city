@@ -87,7 +87,6 @@ export class World {
         instancedBuilding.count = 0;
         this.group.add(instancedBuilding);
 
-        const cityLimit = this.citySize / 2;
         for (let i = -cityLimit; i < cityLimit; i++) {
             for (let j = -cityLimit; j < cityLimit; j++) {
                 const inXRoad = Math.abs(i % this.blockSize) < this.roadWidth / 2;

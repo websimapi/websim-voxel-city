@@ -32,14 +32,15 @@ export class Player {
         document.addEventListener('keydown', (e) => this.keys[e.code] = true);
         document.addEventListener('keyup', (e) => this.keys[e.code] = false);
 
+        // Input vectors
+        this.moveDirection = new THREE.Vector3();
+        this.lookDirection = new THREE.Vector2();
+
         this.initMobileControls();
     }
 
     initMobileControls() {
         if (!isMobile) return;
-
-        this.moveVector = new THREE.Vector2();
-        this.lookVector = new THREE.Vector2();
 
         // Left joystick for movement
         const joystickContainerLeft = document.getElementById('joystick-container-left');
@@ -52,12 +53,12 @@ export class Player {
 
         joystickMove.on('move', (evt, data) => {
             if (data.vector) {
-                this.moveVector.set(data.vector.x, data.vector.y);
+                this.moveDirection.set(data.vector.x, 0, -data.vector.y);
             }
         });
 
         joystickMove.on('end', () => {
-            this.moveVector.set(0, 0);
+            this.moveDirection.set(0, 0, 0);
         });
 
         // Right joystick for looking
@@ -71,18 +72,18 @@ export class Player {
 
         joystickLook.on('move', (evt, data) => {
              if (data.vector) {
-                this.lookVector.set(data.vector.x, data.vector.y);
+                this.lookDirection.set(data.vector.x, data.vector.y);
             }
         });
 
         joystickLook.on('end', () => {
-            this.lookVector.set(0, 0);
+            this.lookDirection.set(0, 0);
         });
         
         // Remove old touch listeners
     }
 
-    handleCollisions(world) {
+    handleCollisions(world, moveVector) {
         // Broad phase: get nearby collidable objects
         const worldBoxes = world.getCollisionBoxes(this.controls.getObject().position);
         if (worldBoxes.length === 0) return;
@@ -118,29 +119,7 @@ export class Player {
         }
         
         // After Y-axis is resolved, we handle X and Z
-        const forward = new THREE.Vector3();
-        // Use camera's parent for forward direction, as camera itself is rotated for pitch.
-        this.controls.getObject().getWorldDirection(forward);
-        forward.y = 0;
-        forward.normalize();
-
-        const right = new THREE.Vector3();
-        right.copy(forward).cross(this.camera.up);
-
-        const forwardMovement = -(Number(this.keys['KeyW']) - Number(this.keys['KeyS'])) || -this.moveVector.y;
-        const rightMovement = (Number(this.keys['KeyD']) - Number(this.keys['KeyA'])) || this.moveVector.x;
         
-        const moveDirection = new THREE.Vector3()
-            .add(forward.multiplyScalar(forwardMovement))
-            .add(right.multiplyScalar(rightMovement));
-
-        if (moveDirection.length() > 0) {
-            moveDirection.normalize();
-        }
-
-        const moveVector = moveDirection.multiplyScalar(this.speed * this.delta);
-
-
         // --- X-AXIS (HORIZONTAL) COLLISION ---
         playerPos.x += moveVector.x;
         let playerBoxX = new THREE.Box3().setFromCenterAndSize(
@@ -170,30 +149,54 @@ export class Player {
     }
 
     update(delta, world) {
-        this.delta = delta; // Store delta for use in handleCollisions
+        this.delta = delta; // Store delta for use in other methods
 
-        if (isMobile && this.lookVector.length() > 0) {
-            // Horizontal rotation (Yaw)
-            this.controls.getObject().rotation.y -= this.lookVector.x * delta * 2;
+        // --- Handle Rotation ---
+        if (isMobile) {
+            // Horizontal rotation (Yaw) from right joystick
+            this.controls.getObject().rotation.y -= this.lookDirection.x * delta * 2;
             
-            // Vertical rotation (Pitch)
-            this.camera.rotation.x -= this.lookVector.y * delta;
+            // Vertical rotation (Pitch) from right joystick
+            this.camera.rotation.x -= this.lookDirection.y * delta * 1.5;
             this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
         }
 
-        this.velocity.y -= this.gravity * delta;
+        // --- Handle Movement Input ---
+        if (!isMobile) {
+            this.moveDirection.z = -(Number(this.keys['KeyW']) - Number(this.keys['KeyS']));
+            this.moveDirection.x = Number(this.keys['KeyD']) - Number(this.keys['KeyA']);
+        }
 
-        // This calculation is now handled in handleCollisions, so it's redundant here.
-        // this.direction.z = Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward);
-        // this.direction.x = Number(this.keys['KeyA'] || this.moveLeft) - Number(this.keys['KeyD'] || this.moveRight);
-        // this.direction.normalize(); // Ensure consistent speed in all directions
+        // --- Calculate Movement Vector ---
+        const moveVector = new THREE.Vector3();
+        if (this.moveDirection.lengthSq() > 0) {
+            // Get forward direction
+            const forward = new THREE.Vector3();
+            this.controls.getObject().getWorldDirection(forward);
+            forward.y = 0;
+            forward.normalize();
+
+            // Get right direction
+            const right = new THREE.Vector3().crossVectors(this.camera.up, forward).negate();
+
+            // Combine directions
+            const combined = new THREE.Vector3()
+                .add(forward.multiplyScalar(this.moveDirection.z))
+                .add(right.multiplyScalar(this.moveDirection.x));
+            
+            combined.normalize();
+            moveVector.copy(combined).multiplyScalar(this.speed * delta);
+        }
+
+        // --- Apply Physics and Collisions ---
+        this.velocity.y -= this.gravity * delta;
 
         if ((this.keys['Space']) && this.onGround) {
             this.velocity.y = this.jumpHeight;
             this.onGround = false;
         }
 
-        this.handleCollisions(world);
+        this.handleCollisions(world, moveVector);
 
         // Fallback respawn
         if (this.controls.getObject().position.y < -20) {

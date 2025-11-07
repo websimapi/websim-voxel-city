@@ -66,12 +66,12 @@ export class Player {
             }
         });
         document.addEventListener('touchmove', (e) => {
-            if (e.touches.length === 1 && e.touches[0].clientX > window.innerWidth / 2) {
+            if (e.touches.length === 1 && e.touches[0] && e.touches[0].clientX > window.innerWidth / 2) {
                 const dx = e.touches[0].clientX - lastTouchX;
                 const dy = e.touches[0].clientY - lastTouchY;
-                this.controls.moveRight(-dx * 0.2);
-                this.controls.getObject().children[0].rotation.x -= dy * 0.002;
-                this.controls.getObject().children[0].rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, this.controls.getObject().children[0].rotation.x));
+                this.controls.moveRight(-dx * 0.005); // Use moveRight for yaw
+                this.camera.rotation.x -= dy * 0.002; // Rotate camera directly for pitch
+                this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x)); // Clamp pitch
                 lastTouchX = e.touches[0].clientX;
                 lastTouchY = e.touches[0].clientY;
             }

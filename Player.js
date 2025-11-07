@@ -119,15 +119,16 @@ export class Player {
         
         // After Y-axis is resolved, we handle X and Z
         const forward = new THREE.Vector3();
-        this.camera.getWorldDirection(forward);
+        // Use camera's parent for forward direction, as camera itself is rotated for pitch.
+        this.controls.getObject().getWorldDirection(forward);
         forward.y = 0;
         forward.normalize();
 
         const right = new THREE.Vector3();
         right.copy(forward).cross(this.camera.up);
 
-        const forwardMovement = (Number(this.keys['KeyW']) - Number(this.keys['KeyS'])) || this.moveVector.y;
-        const rightMovement = (Number(this.keys['KeyD']) - Number(this.keys['KeyA'])) || -this.moveVector.x;
+        const forwardMovement = -(Number(this.keys['KeyW']) - Number(this.keys['KeyS'])) || -this.moveVector.y;
+        const rightMovement = (Number(this.keys['KeyD']) - Number(this.keys['KeyA'])) || this.moveVector.x;
         
         const moveDirection = new THREE.Vector3()
             .add(forward.multiplyScalar(forwardMovement))
@@ -172,9 +173,12 @@ export class Player {
         this.delta = delta; // Store delta for use in handleCollisions
 
         if (isMobile && this.lookVector.length() > 0) {
-            this.controls.moveRight(-this.lookVector.x * delta * 2);
-            this.controls.getObject().rotation.x -= this.lookVector.y * delta;
-            this.controls.getObject().rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.controls.getObject().rotation.x));
+            // Horizontal rotation (Yaw)
+            this.controls.getObject().rotation.y -= this.lookVector.x * delta * 2;
+            
+            // Vertical rotation (Pitch)
+            this.camera.rotation.x -= this.lookVector.y * delta;
+            this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
         }
 
         this.velocity.y -= this.gravity * delta;

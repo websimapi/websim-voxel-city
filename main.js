@@ -109,4 +109,6 @@ class Game {
     }
 }
 
-new Game();
+document.addEventListener('DOMContentLoaded', () => {
+    new Game();
+});

@@ -26,12 +26,14 @@ export class UI {
             }
         });
 
-        window.onPeerId = (id) => {
+        window.onPeerId = async (id) => {
             this.myPeerIdEl.textContent = id;
-            QRCode.toCanvas(this.qrCodeEl, id, (error) => {
-                if (error) console.error(error);
+            try {
+                await QRCode.toCanvas(this.qrCodeEl, id);
                 console.log('QR code generated!');
-            });
+            } catch (error) {
+                console.error('Error generating QR code:', error);
+            }
         };
     }
 

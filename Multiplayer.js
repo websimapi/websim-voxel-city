@@ -22,6 +22,10 @@ export class Multiplayer {
         this.peer.on('connection', (conn) => {
             this.setupConnection(conn);
         });
+
+        this.peer.on('error', (err) => {
+            console.error('PeerJS main error:', err);
+        });
     }
 
     connect(peerId) {

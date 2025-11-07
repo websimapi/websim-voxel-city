@@ -20,7 +20,13 @@ export class Player {
         this.controls = new PointerLockControls(this.camera, document.body);
         this.controls.addEventListener('lock', () => console.log('Pointer locked'));
         this.controls.addEventListener('unlock', () => console.log('Pointer unlocked'));
-        document.body.addEventListener('click', () => this.controls.lock());
+        document.body.addEventListener('click', () => {
+            this.controls.lock().catch(err => {
+                // This can happen if the user denies the request or it's not in a trusted context.
+                // It's not a critical error, so we can just log it.
+                console.log("Could not lock pointer:", err);
+            });
+        });
 
         this.keys = {};
         document.addEventListener('keydown', (e) => this.keys[e.code] = true);

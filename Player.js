@@ -79,75 +79,102 @@ export class Player {
     }
 
     handleCollisions(world) {
-        const playerBox = new THREE.Box3().setFromCenterAndSize(
-            this.controls.getObject().position,
+        // Broad phase: get nearby collidable objects
+        const worldBoxes = world.getCollisionBoxes(this.controls.getObject().position);
+        if (worldBoxes.length === 0) return;
+
+        // Store original position
+        const playerPos = this.controls.getObject().position;
+        const originalY = playerPos.y;
+
+        // --- Y-AXIS (VERTICAL) COLLISION ---
+        this.onGround = false;
+        playerPos.y += this.velocity.y * this.delta;
+
+        let playerBoxY = new THREE.Box3().setFromCenterAndSize(
+            playerPos,
             new THREE.Vector3(0.5, this.height, 0.5)
         );
 
-        this.onGround = false;
-        const worldBoxes = world.getCollisionBoxes(this.controls.getObject().position);
-
-        worldBoxes.forEach(box => {
-            if (playerBox.intersectsBox(box)) {
-                const intersection = new THREE.Box3().copy(playerBox).intersect(box);
-                const size = intersection.getSize(new THREE.Vector3());
-
-                if (size.y > size.x && size.y > size.z) { // Vertical collision
-                    if (playerBox.min.y < box.max.y && this.velocity.y <= 0) {
-                        this.velocity.y = 0;
-                        this.controls.getObject().position.y = box.max.y + this.height / 2;
-                        this.onGround = true;
-                    } else if (playerBox.max.y > box.min.y && this.velocity.y > 0) {
-                        // Hitting ceiling
-                        this.velocity.y = 0;
-                        this.controls.getObject().position.y = box.min.y - this.height / 2;
-                    }
-                } else { // Horizontal collision
-                     if (size.x > size.z) {
-                        if (playerBox.getCenter(new THREE.Vector3()).x < box.getCenter(new THREE.Vector3()).x) {
-                           this.controls.getObject().position.x -= size.x;
-                        } else {
-                           this.controls.getObject().position.x += size.x;
-                        }
-                    } else {
-                        if (playerBox.getCenter(new THREE.Vector3()).z < box.getCenter(new THREE.Vector3()).z) {
-                           this.controls.getObject().position.z -= size.z;
-                        } else {
-                           this.controls.getObject().position.z += size.z;
-                        }
-                    }
+        for (const box of worldBoxes) {
+            if (playerBoxY.intersectsBox(box)) {
+                if (this.velocity.y <= 0) { // Moving down
+                    playerPos.y = box.max.y + this.height / 2;
+                    this.onGround = true;
+                } else { // Moving up
+                    playerPos.y = box.min.y - this.height / 2;
                 }
+                this.velocity.y = 0;
+                // Re-calculate box after position correction
+                playerBoxY = new THREE.Box3().setFromCenterAndSize(
+                    playerPos,
+                    new THREE.Vector3(0.5, this.height, 0.5)
+                );
             }
-        });
+        }
+        
+        // After Y-axis is resolved, we handle X and Z
+        const playerVelocity = new THREE.Vector3();
+        this.controls.getDirection(playerVelocity);
+        playerVelocity.y = 0;
+        playerVelocity.normalize();
+        playerVelocity.multiplyScalar(
+             (Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward)) * this.speed * this.delta
+        );
+
+        const rightVelocity = new THREE.Vector3();
+        rightVelocity.copy(playerVelocity).cross(this.camera.up).normalize();
+        rightVelocity.multiplyScalar(
+            (Number(this.keys['KeyA'] || this.moveLeft) - Number(this.keys['KeyD'] || this.moveRight)) * this.speed * this.delta
+        );
+
+
+        // --- X-AXIS (HORIZONTAL) COLLISION ---
+        playerPos.x += playerVelocity.x + rightVelocity.x;
+        let playerBoxX = new THREE.Box3().setFromCenterAndSize(
+            playerPos,
+            new THREE.Vector3(0.5, this.height, 0.5)
+        );
+        for (const box of worldBoxes) {
+            if (playerBoxX.intersectsBox(box)) {
+                 playerPos.x -= (playerVelocity.x + rightVelocity.x); // Revert x movement
+                 break;
+            }
+        }
+
+        // --- Z-AXIS (HORIZONTAL) COLLISION ---
+        playerPos.z += playerVelocity.z + rightVelocity.z;
+        let playerBoxZ = new THREE.Box3().setFromCenterAndSize(
+            playerPos,
+            new THREE.Vector3(0.5, this.height, 0.5)
+        );
+
+        for (const box of worldBoxes) {
+             if (playerBoxZ.intersectsBox(box)) {
+                 playerPos.z -= (playerVelocity.z + rightVelocity.z); // Revert z movement
+                 break;
+             }
+        }
     }
 
     update(delta, world) {
-        this.velocity.x -= this.velocity.x * 10.0 * delta;
-        this.velocity.z -= this.velocity.z * 10.0 * delta;
+        this.delta = delta; // Store delta for use in handleCollisions
+
         this.velocity.y -= this.gravity * delta;
 
         this.direction.z = Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward);
-        this.direction.x = Number(this.keys['KeyD'] || this.moveRight) - Number(this.keys['KeyA'] || this.moveLeft);
-        this.direction.normalize();
-
-        if (this.keys['KeyW'] || this.keys['KeyS'] || this.moveForward || this.moveBackward) {
-            this.velocity.z -= this.direction.z * this.speed * 10.0 * delta;
-        }
-        if (this.keys['KeyA'] || this.keys['KeyD'] || this.moveLeft || this.moveRight) {
-            this.velocity.x -= this.direction.x * this.speed * 10.0 * delta;
-        }
+        this.direction.x = Number(this.keys['KeyA'] || this.moveLeft) - Number(this.keys['KeyD'] || this.moveRight);
+        this.direction.normalize(); // Ensure consistent speed in all directions
 
         if ((this.keys['Space']) && this.onGround) {
             this.velocity.y = this.jumpHeight;
+            this.onGround = false;
         }
-
-        this.controls.moveRight(-this.velocity.x * delta);
-        this.controls.moveForward(-this.velocity.z * delta);
-        this.controls.getObject().position.y += this.velocity.y * delta;
 
         this.handleCollisions(world);
 
-        if (this.controls.getObject().position.y < -10) {
+        // Fallback respawn
+        if (this.controls.getObject().position.y < -20) {
             this.velocity.y = 0;
             this.controls.getObject().position.set(0, this.height, 10);
         }

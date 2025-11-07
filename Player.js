@@ -75,9 +75,9 @@ export class Player {
             if (e.touches.length === 1 && e.touches[0] && e.touches[0].clientX > window.innerWidth / 2) {
                 const dx = e.touches[0].clientX - lastTouchX;
                 const dy = e.touches[0].clientY - lastTouchY;
-                this.controls.moveRight(-dx * 0.005); // Use moveRight for yaw
-                this.camera.rotation.x -= dy * 0.002; // Rotate camera directly for pitch
-                this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x)); // Clamp pitch
+                this.controls.moveRight(-dx * 0.005); // Use moveRight for yaw (left/right)
+                this.controls.getObject().rotation.x -= dy * 0.002; // Rotate camera directly for pitch (up/down)
+                this.controls.getObject().rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.controls.getObject().rotation.x)); // Clamp pitch
                 lastTouchX = e.touches[0].clientX;
                 lastTouchY = e.touches[0].clientY;
             }
@@ -120,36 +120,43 @@ export class Player {
         }
         
         // After Y-axis is resolved, we handle X and Z
-        const playerVelocity = new THREE.Vector3();
-        this.controls.getDirection(playerVelocity);
-        playerVelocity.y = 0;
-        playerVelocity.normalize();
-        playerVelocity.multiplyScalar(
-             (Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward)) * this.speed * this.delta
-        );
+        const forward = new THREE.Vector3();
+        this.camera.getWorldDirection(forward);
+        forward.y = 0;
+        forward.normalize();
 
-        const rightVelocity = new THREE.Vector3();
-        rightVelocity.copy(playerVelocity).cross(this.camera.up).normalize();
-        rightVelocity.multiplyScalar(
-            (Number(this.keys['KeyA'] || this.moveLeft) - Number(this.keys['KeyD'] || this.moveRight)) * this.speed * this.delta
-        );
+        const right = new THREE.Vector3();
+        right.copy(forward).cross(this.camera.up);
+
+        const forwardMovement = (Number(this.keys['KeyW'] || this.moveForward) - Number(this.keys['KeyS'] || this.moveBackward));
+        const rightMovement = (Number(this.keys['KeyD'] || this.moveRight) - Number(this.keys['KeyA'] || this.moveLeft));
+        
+        const moveDirection = new THREE.Vector3()
+            .add(forward.multiplyScalar(forwardMovement))
+            .add(right.multiplyScalar(rightMovement));
+
+        if (moveDirection.length() > 0) {
+            moveDirection.normalize();
+        }
+
+        const moveVector = moveDirection.multiplyScalar(this.speed * this.delta);
 
 
         // --- X-AXIS (HORIZONTAL) COLLISION ---
-        playerPos.x += playerVelocity.x + rightVelocity.x;
+        playerPos.x += moveVector.x;
         let playerBoxX = new THREE.Box3().setFromCenterAndSize(
             playerPos,
             new THREE.Vector3(0.5, this.height, 0.5)
         );
         for (const box of worldBoxes) {
             if (playerBoxX.intersectsBox(box)) {
-                 playerPos.x -= (playerVelocity.x + rightVelocity.x); // Revert x movement
+                 playerPos.x -= moveVector.x; // Revert x movement
                  break;
             }
         }
 
         // --- Z-AXIS (HORIZONTAL) COLLISION ---
-        playerPos.z += playerVelocity.z + rightVelocity.z;
+        playerPos.z += moveVector.z;
         let playerBoxZ = new THREE.Box3().setFromCenterAndSize(
             playerPos,
             new THREE.Vector3(0.5, this.height, 0.5)
@@ -157,7 +164,7 @@ export class Player {
 
         for (const box of worldBoxes) {
              if (playerBoxZ.intersectsBox(box)) {
-                 playerPos.z -= (playerVelocity.z + rightVelocity.z); // Revert z movement
+                 playerPos.z -= moveVector.z; // Revert z movement
                  break;
              }
         }

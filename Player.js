@@ -73,6 +73,13 @@ export class Player {
         joystickLook.on('move', (evt, data) => {
              if (data.vector) {
                 this.lookDirection.set(data.vector.x, data.vector.y);
+
+                // Use PointerLockControls' built-in move method for rotation
+                const e = {
+                    movementX: data.vector.x * 5, // Sensitivity multiplier
+                    movementY: data.vector.y * 5  // Sensitivity multiplier
+                };
+                this.controls.onMouseMove(e);
             }
         });
 
@@ -153,12 +160,9 @@ export class Player {
 
         // --- Handle Rotation ---
         if (isMobile) {
-            // Horizontal rotation (Yaw) from right joystick
-            this.controls.getObject().rotation.y -= this.lookDirection.x * delta * 2;
-            
-            // Vertical rotation (Pitch) from right joystick
-            this.camera.rotation.x -= this.lookDirection.y * delta * 1.5;
-            this.camera.rotation.x = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, this.camera.rotation.x));
+            // Rotation is now handled directly in joystickLook's 'move' event
+            // by calling this.controls.onMouseMove(e).
+            // This ensures consistent behavior with mouse look.
         }
 
         // --- Handle Movement Input ---
@@ -170,22 +174,25 @@ export class Player {
         // --- Calculate Movement Vector ---
         const moveVector = new THREE.Vector3();
         if (this.moveDirection.lengthSq() > 0) {
-            // Get forward direction
-            const forward = new THREE.Vector3();
-            this.controls.getObject().getWorldDirection(forward);
-            forward.y = 0;
-            forward.normalize();
+            const direction = this.moveDirection.clone().normalize();
+            this.controls.moveForward(direction.z * this.speed * delta);
+            this.controls.moveRight(direction.x * this.speed * delta);
 
-            // Get right direction
-            const right = new THREE.Vector3().crossVectors(this.camera.up, forward).negate();
-
-            // Combine directions
-            const combined = new THREE.Vector3()
-                .add(forward.multiplyScalar(this.moveDirection.z))
-                .add(right.multiplyScalar(this.moveDirection.x));
+            // Copy the movement to moveVector for collision detection
+            const currentPos = this.controls.getObject().position.clone();
+            const forwardMove = new THREE.Vector3();
+            this.controls.getObject().getWorldDirection(forwardMove);
+            forwardMove.y = 0;
+            forwardMove.normalize().multiplyScalar(direction.z * this.speed * delta);
             
-            combined.normalize();
-            moveVector.copy(combined).multiplyScalar(this.speed * delta);
+            const rightMove = new THREE.Vector3();
+            this.controls.getObject().getWorldDirection(rightMove);
+            rightMove.cross(this.camera.up).normalize().multiplyScalar(direction.x * this.speed * delta);
+
+            moveVector.add(forwardMove).add(rightMove);
+            
+            // Reset position because we will re-apply it in handleCollisions
+            this.controls.getObject().position.copy(currentPos);
         }
 
         // --- Apply Physics and Collisions ---
